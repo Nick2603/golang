@@ -1,0 +1,22 @@
+# Binaries
+/bin/
+/vendor/
+/dist/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
