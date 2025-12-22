@@ -11,6 +11,10 @@ func NewStore() *Store {
 }
 
 func (s *Store) CreateCollection(name string, cfg *CollectionConfig) (bool, *Collection) {
+	if cfg == nil {
+		return false, nil
+	}
+
 	if _, exists := s.collections[name]; exists {
 		return false, nil
 	}
