@@ -17,12 +17,20 @@ func NewCollection(cfg CollectionConfig) *Collection {
 }
 
 func (c *Collection) Put(doc Document) error {
+	if doc.Fields == nil {
+		return ErrNilValue
+	}
+
 	field, ok := doc.Fields[c.cfg.PrimaryKey]
 	if !ok || field.Type != DocumentFieldTypeString {
 		return ErrInvalidPrimaryKey
 	}
 
-	key := field.Value.(string)
+	key, ok := field.Value.(string)
+	if !ok || key == "" {
+		return ErrInvalidPrimaryKey
+	}
+
 	c.documents[key] = doc
 	return nil
 }

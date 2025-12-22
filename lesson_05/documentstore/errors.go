@@ -8,4 +8,5 @@ var (
 	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrUnsupportedDocumentField = errors.New("unsupported document field")
 	ErrInvalidPrimaryKey        = errors.New("invalid primary key")
+	ErrNilValue                 = errors.New("got nil instead of value")
 )
