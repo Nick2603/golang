@@ -13,11 +13,20 @@ type User struct {
 	Name string `json:"name"`
 }
 
-type Service struct {
-	coll *documentstore.Collection
+//go:generate mockery --name=CollectionStore --output=mocks --outpkg=mocks
+
+type CollectionStore interface {
+	Put(doc documentstore.Document) error
+	Get(id string) (*documentstore.Document, error)
+	List() []documentstore.Document
+	Delete(id string) error
 }
 
-func NewService(coll *documentstore.Collection) *Service {
+type Service struct {
+	coll CollectionStore
+}
+
+func NewService(coll CollectionStore) *Service {
 	return &Service{coll: coll}
 }
 

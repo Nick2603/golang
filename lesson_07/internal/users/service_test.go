@@ -4,12 +4,14 @@ import (
 	"testing"
 
 	"github.com/Nick2603/golang/lesson_07/internal/documentstore"
+	"github.com/Nick2603/golang/lesson_07/internal/users/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func setupService(t *testing.T) *Service {
-	t.Helper() // Mark this as a test helper
+	t.Helper()
 
 	coll := documentstore.NewCollection(documentstore.CollectionConfig{
 		PrimaryKey: "id",
@@ -76,6 +78,24 @@ func TestService_CreateUser(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("calls Put on collection store", func(t *testing.T) {
+		mockColl := mocks.NewCollectionStore(t)
+		svc := NewService(mockColl)
+
+		mockColl.On("Put", mock.AnythingOfType("documentstore.Document")).
+			Return(nil).
+			Once()
+
+		user, err := svc.CreateUser("1", "Alice")
+
+		assert.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Equal(t, "1", user.ID)
+		assert.Equal(t, "Alice", user.Name)
+
+		mockColl.AssertExpectations(t)
+	})
 }
 
 func TestService_GetUser(t *testing.T) {
@@ -142,6 +162,37 @@ func TestService_GetUser(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("calls Get on collection store", func(t *testing.T) {
+		mockColl := mocks.NewCollectionStore(t)
+		svc := NewService(mockColl)
+
+		expectedDoc := &documentstore.Document{
+			Fields: map[string]documentstore.DocumentField{
+				"id": {
+					Type:  documentstore.DocumentFieldTypeString,
+					Value: "1",
+				},
+				"name": {
+					Type:  documentstore.DocumentFieldTypeString,
+					Value: "Alice",
+				},
+			},
+		}
+
+		mockColl.On("Get", "1").
+			Return(expectedDoc, nil).
+			Once()
+
+		user, err := svc.GetUser("1")
+
+		assert.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Equal(t, "1", user.ID)
+		assert.Equal(t, "Alice", user.Name)
+
+		mockColl.AssertExpectations(t)
+	})
 }
 
 func TestService_ListUsers(t *testing.T) {
@@ -206,6 +257,49 @@ func TestService_ListUsers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("calls List on collection store", func(t *testing.T) {
+		mockColl := mocks.NewCollectionStore(t)
+		svc := NewService(mockColl)
+
+		docs := []documentstore.Document{
+			{
+				Fields: map[string]documentstore.DocumentField{
+					"id": {
+						Type:  documentstore.DocumentFieldTypeString,
+						Value: "1",
+					},
+					"name": {
+						Type:  documentstore.DocumentFieldTypeString,
+						Value: "Alice",
+					},
+				},
+			},
+			{
+				Fields: map[string]documentstore.DocumentField{
+					"id": {
+						Type:  documentstore.DocumentFieldTypeString,
+						Value: "2",
+					},
+					"name": {
+						Type:  documentstore.DocumentFieldTypeString,
+						Value: "Bob",
+					},
+				},
+			},
+		}
+
+		mockColl.On("List").
+			Return(docs).
+			Once()
+
+		users, err := svc.ListUsers()
+
+		assert.NoError(t, err)
+		assert.Len(t, users, 2)
+
+		mockColl.AssertExpectations(t)
+	})
 }
 
 func TestService_DeleteUser(t *testing.T) {
@@ -268,9 +362,23 @@ func TestService_DeleteUser(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("calls Delete on collection store", func(t *testing.T) {
+		mockColl := mocks.NewCollectionStore(t)
+		svc := NewService(mockColl)
+
+		mockColl.On("Delete", "1").
+			Return(nil).
+			Once()
+
+		err := svc.DeleteUser("1")
+
+		assert.NoError(t, err)
+
+		mockColl.AssertExpectations(t)
+	})
 }
 
-// Keep integration test as is - it's already clear
 func TestService_Integration(t *testing.T) {
 	t.Run("full CRUD workflow", func(t *testing.T) {
 		svc := setupService(t)
