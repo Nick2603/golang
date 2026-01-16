@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestLruCache_PutAndGet(t *testing.T) {
-	cache := NewLruCache(2)
+func TestCache_PutAndGet(t *testing.T) {
+	cache, _ := NewCache(2)
 
 	cache.Put("key1", "value1")
 	if value, ok := cache.Get("key1"); !ok || value != "value1" {
@@ -22,8 +22,8 @@ func TestLruCache_PutAndGet(t *testing.T) {
 	}
 }
 
-func TestLruCache_ReplaceLeastRecentlyUsed(t *testing.T) {
-	cache := NewLruCache(2)
+func TestCache_ReplaceLeastRecentlyUsed(t *testing.T) {
+	cache, _ := NewCache(2)
 
 	cache.Put("key1", "value1")
 	cache.Put("key2", "value2")
@@ -43,8 +43,8 @@ func TestLruCache_ReplaceLeastRecentlyUsed(t *testing.T) {
 	}
 }
 
-func TestLruCache_UpdateKey(t *testing.T) {
-	cache := NewLruCache(2)
+func TestCache_UpdateKey(t *testing.T) {
+	cache, _ := NewCache(2)
 
 	cache.Put("key1", "value1")
 	cache.Put("key1", "updated_value1")
@@ -54,8 +54,8 @@ func TestLruCache_UpdateKey(t *testing.T) {
 	}
 }
 
-func TestLruCache_LRUBehavior(t *testing.T) {
-	cache := NewLruCache(2)
+func TestCache_Behavior(t *testing.T) {
+	cache, _ := NewCache(2)
 
 	cache.Put("key1", "value1")
 	cache.Put("key2", "value2")

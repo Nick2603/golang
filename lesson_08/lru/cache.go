@@ -2,9 +2,12 @@ package lru
 
 import (
 	"container/list"
+	"errors"
 )
 
-type LruCache interface {
+var ErrInvalidCapacity = errors.New("capacity must be positive")
+
+type Cache interface {
 	Put(key, value string)
 	Get(key string) (string, bool)
 }
@@ -14,25 +17,25 @@ type cacheItem struct {
 	value string
 }
 
-type lruCache struct {
+type cache struct {
 	capacity int
 	cache    map[string]*list.Element
 	list     *list.List
 }
 
-func NewLruCache(capacity int) LruCache {
+func NewCache(capacity int) (Cache, error) {
 	if capacity <= 0 {
-		panic("capacity must be positive")
+		return nil, ErrInvalidCapacity
 	}
 
-	return &lruCache{
+	return &cache{
 		capacity: capacity,
 		cache:    make(map[string]*list.Element),
 		list:     list.New(),
-	}
+	}, nil
 }
 
-func (c *lruCache) Get(key string) (string, bool) {
+func (c *cache) Get(key string) (string, bool) {
 	if element, exists := c.cache[key]; exists {
 		c.list.MoveToFront(element)
 		item := element.Value.(*cacheItem)
@@ -42,7 +45,7 @@ func (c *lruCache) Get(key string) (string, bool) {
 	return "", false
 }
 
-func (c *lruCache) Put(key, value string) {
+func (c *cache) Put(key, value string) {
 	if element, exists := c.cache[key]; exists {
 		c.list.MoveToFront(element)
 		item := element.Value.(*cacheItem)
