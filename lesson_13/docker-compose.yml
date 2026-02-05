@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  documentstore-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: documentstore-server
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount volume for potential data persistence
+      - documentstore-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  documentstore-data:
+    driver: local
