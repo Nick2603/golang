@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Nick2603/golang/lesson_14/internal/handlers"
+	"github.com/Nick2603/golang/lesson_14/internal/storage"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -58,7 +59,8 @@ func main() {
 
 	log.Println("Successfully connected to MongoDB")
 
-	handler := handlers.NewHandler(client, dbName)
+	store := storage.NewMongoStorage(client, dbName)
+	handler := handlers.NewHandler(store)
 
 	http.HandleFunc("POST /put_document", handler.HandlePutDocument)
 	http.HandleFunc("POST /get_document", handler.HandleGetDocument)

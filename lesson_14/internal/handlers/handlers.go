@@ -1,25 +1,30 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type Handler struct {
-	client *mongo.Client
-	dbName string
+type Storage interface {
+	PutDocument(ctx context.Context, collectionName string, document map[string]any) error
+	GetDocument(ctx context.Context, collectionName string, filter map[string]any) (map[string]any, error)
+	ListDocuments(ctx context.Context, collectionName string, filter map[string]any) ([]map[string]any, error)
+	DeleteDocument(ctx context.Context, collectionName string, filter map[string]any) (int64, error)
+	CreateCollection(ctx context.Context, collectionName string) error
+	ListCollections(ctx context.Context) ([]string, error)
+	DeleteCollection(ctx context.Context, collectionName string) error
+	CreateIndex(ctx context.Context, collectionName string, fieldName string, unique bool, sparse bool) (string, error)
+	DeleteIndex(ctx context.Context, collectionName string, indexName string) error
 }
 
-func NewHandler(client *mongo.Client, dbName string) *Handler {
-	return &Handler{
-		client: client,
-		dbName: dbName,
-	}
+type Handler struct {
+	storage Storage
+}
+
+func NewHandler(storage Storage) *Handler {
+	return &Handler{storage: storage}
 }
 
 type PutDocumentRequest struct {
@@ -48,29 +53,8 @@ func (h *Handler) HandlePutDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	var filter bson.M
-	if id, ok := req.Document["_id"]; ok {
-		filter = bson.M{"_id": id}
-	} else if id, ok := req.Document["id"]; ok {
-		filter = bson.M{"id": id}
-	} else {
-		_, err := coll.InsertOne(r.Context(), req.Document)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to insert document: %v", err), http.StatusInternalServerError)
-			return
-		}
-		respondJSON(w, PutDocumentResponse{Ok: true})
-		return
-	}
-
-	update := bson.M{"$set": req.Document}
-	opts := options.Update().SetUpsert(true)
-
-	_, err := coll.UpdateOne(r.Context(), filter, update, opts)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to update document: %v", err), http.StatusInternalServerError)
+	if err := h.storage.PutDocument(r.Context(), req.CollectionName, req.Document); err != nil {
+		http.Error(w, fmt.Sprintf("failed to put document: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -104,16 +88,14 @@ func (h *Handler) HandleGetDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	var doc map[string]any
-	err := coll.FindOne(r.Context(), req.Filter).Decode(&doc)
+	doc, err := h.storage.GetDocument(r.Context(), req.CollectionName, req.Filter)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			respondJSON(w, GetDocumentResponse{Ok: false})
-			return
-		}
 		http.Error(w, fmt.Sprintf("failed to find document: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if doc == nil {
+		respondJSON(w, GetDocumentResponse{Ok: false})
 		return
 	}
 
@@ -142,37 +124,10 @@ func (h *Handler) HandleListDocuments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	filter := bson.M{}
-	if len(req.Filter) > 0 {
-		filter = req.Filter
-	}
-
-	cursor, err := coll.Find(r.Context(), filter)
+	documents, err := h.storage.ListDocuments(r.Context(), req.CollectionName, req.Filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to find documents: %v", err), http.StatusInternalServerError)
 		return
-	}
-	defer cursor.Close(r.Context())
-
-	var documents []map[string]any
-	for cursor.Next(r.Context()) {
-		var doc map[string]any
-		if err := cursor.Decode(&doc); err != nil {
-			http.Error(w, fmt.Sprintf("failed to decode document: %v", err), http.StatusInternalServerError)
-			return
-		}
-		documents = append(documents, doc)
-	}
-
-	if err := cursor.Err(); err != nil {
-		http.Error(w, fmt.Sprintf("cursor error: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if documents == nil {
-		documents = []map[string]any{}
 	}
 
 	respondJSON(w, ListDocumentsResponse{Ok: true, Documents: documents})
@@ -205,18 +160,13 @@ func (h *Handler) HandleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	result, err := coll.DeleteOne(r.Context(), req.Filter)
+	deletedCount, err := h.storage.DeleteDocument(r.Context(), req.CollectionName, req.Filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to delete document: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	respondJSON(w, DeleteDocumentResponse{
-		Ok:           result.DeletedCount > 0,
-		DeletedCount: result.DeletedCount,
-	})
+	respondJSON(w, DeleteDocumentResponse{Ok: deletedCount > 0, DeletedCount: deletedCount})
 }
 
 type CreateCollectionRequest struct {
@@ -239,10 +189,7 @@ func (h *Handler) HandleCreateCollection(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	db := h.client.Database(h.dbName)
-
-	err := db.CreateCollection(r.Context(), req.CollectionName)
-	if err != nil {
+	if err := h.storage.CreateCollection(r.Context(), req.CollectionName); err != nil {
 		http.Error(w, fmt.Sprintf("failed to create collection: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -258,16 +205,10 @@ type ListCollectionsResponse struct {
 }
 
 func (h *Handler) HandleListCollections(w http.ResponseWriter, r *http.Request) {
-	db := h.client.Database(h.dbName)
-
-	collections, err := db.ListCollectionNames(r.Context(), bson.M{})
+	collections, err := h.storage.ListCollections(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to list collections: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	if collections == nil {
-		collections = []string{}
 	}
 
 	respondJSON(w, ListCollectionsResponse{Ok: true, Collections: collections})
@@ -293,10 +234,7 @@ func (h *Handler) HandleDeleteCollection(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	err := coll.Drop(r.Context())
-	if err != nil {
+	if err := h.storage.DeleteCollection(r.Context(), req.CollectionName); err != nil {
 		http.Error(w, fmt.Sprintf("failed to delete collection: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -333,24 +271,7 @@ func (h *Handler) HandleCreateIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: req.FieldName, Value: 1}}, // 1 for ascending
-	}
-
-	if req.Unique || req.Sparse {
-		opts := options.Index()
-		if req.Unique {
-			opts.SetUnique(true)
-		}
-		if req.Sparse {
-			opts.SetSparse(true)
-		}
-		indexModel.Options = opts
-	}
-
-	indexName, err := coll.Indexes().CreateOne(r.Context(), indexModel)
+	indexName, err := h.storage.CreateIndex(r.Context(), req.CollectionName, req.FieldName, req.Unique, req.Sparse)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to create index: %v", err), http.StatusInternalServerError)
 		return
@@ -385,10 +306,7 @@ func (h *Handler) HandleDeleteIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coll := h.client.Database(h.dbName).Collection(req.CollectionName)
-
-	_, err := coll.Indexes().DropOne(r.Context(), req.IndexName)
-	if err != nil {
+	if err := h.storage.DeleteIndex(r.Context(), req.CollectionName, req.IndexName); err != nil {
 		http.Error(w, fmt.Sprintf("failed to delete index: %v", err), http.StatusInternalServerError)
 		return
 	}
