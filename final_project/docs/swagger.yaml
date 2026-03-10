@@ -1,0 +1,474 @@
+basePath: /api
+definitions:
+  handlers.CreatePostRequest:
+    properties:
+      content:
+        example: Hello world!
+        type: string
+      title:
+        example: My first post
+        type: string
+    type: object
+  handlers.SignInRequest:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      password:
+        example: secret123
+        type: string
+    type: object
+  handlers.SignUpRequest:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      password:
+        example: secret123
+        type: string
+      username:
+        example: johndoe
+        type: string
+    type: object
+  handlers.TokenResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  handlers.UpdatePostRequest:
+    properties:
+      content:
+        example: Updated content
+        type: string
+      title:
+        example: Updated title
+        type: string
+    type: object
+  handlers.UpdateUserRequest:
+    properties:
+      email:
+        example: new@example.com
+        type: string
+      password:
+        example: newpassword
+        type: string
+      username:
+        example: newname
+        type: string
+    type: object
+  httputils.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      success:
+        type: boolean
+    type: object
+  models.Post:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: string
+    type: object
+  models.UserResponse:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: A RESTful API for managing users and their posts.
+  title: Backend API
+  version: "1.0"
+paths:
+  /auth/signin:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password; returns a JWT access token
+      parameters:
+      - description: Sign-in credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SignInRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.TokenResponse'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      summary: Sign in
+      tags:
+      - auth
+  /auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with username, email and password
+      parameters:
+      - description: Sign-up credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SignUpRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "409":
+          description: Email already taken
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      summary: Register a new user
+      tags:
+      - auth
+  /posts:
+    get:
+      description: Returns all posts sorted by newest first (public endpoint)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of posts
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Post'
+                  type: array
+              type: object
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      summary: Get all posts
+      tags:
+      - posts
+    post:
+      consumes:
+      - application/json
+      description: Creates a new post for the authenticated user
+      parameters:
+      - description: Post data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Post created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Post'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a post
+      tags:
+      - posts
+  /posts/{id}:
+    delete:
+      description: Deletes a post; only the owner can delete
+      parameters:
+      - description: Post ID (ObjectID hex)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No content
+        "400":
+          description: Invalid ID
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a post
+      tags:
+      - posts
+    get:
+      description: Returns a single post by its ID (public endpoint)
+      parameters:
+      - description: Post ID (ObjectID hex)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Post
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Post'
+              type: object
+        "400":
+          description: Invalid ID
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      summary: Get post by ID
+      tags:
+      - posts
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a post; only the owner can update
+      parameters:
+      - description: Post ID (ObjectID hex)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update (all optional)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated post
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Post'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update a post
+      tags:
+      - posts
+  /users/me:
+    delete:
+      description: Permanently deletes the authenticated user's account
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete current user
+      tags:
+      - users
+    get:
+      description: Returns the profile of the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates the authenticated user's profile
+      parameters:
+      - description: Fields to update (all optional)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated user
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "409":
+          description: Email already taken
+          schema:
+            $ref: '#/definitions/httputils.Response'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/httputils.Response'
+      security:
+      - BearerAuth: []
+      summary: Update current user
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and your JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
